@@ -56,7 +56,8 @@ export async function searchCompanies(
 
 export async function getContents(
   urls: string[],
-  jobId: string
+  jobId: string,
+  step = 'step3-enrich'
 ): Promise<Array<{ url: string; text?: string; title?: string }>> {
   if (urls.length === 0) return [];
   const start = Date.now();
@@ -64,7 +65,7 @@ export async function getContents(
   await logApiCall({
     job_id: jobId,
     service: 'exa',
-    step: 'step3-enrich',
+    step,
     model: 'get-contents',
     prompt: urls.join(', '),
     response: `${results.results?.length ?? 0} pages retrieved`,

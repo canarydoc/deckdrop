@@ -1,11 +1,78 @@
 /**
  * Step 2 — Competitor discovery via Exa.
- * Layer 1: findSimilar (25 results) + multi-description search + adjacent queries (all parallel)
- * Layer 2: findSimilar on top competitors (configurable depth)
- * Output: ranked list with tier classification (direct vs adjacent)
+ *
+ * Layer 1: findSimilar(25) on company URL + multi-description searches + adjacent queries
+ * Layer 2: findSimilar(25) on top competitors — ONLY on clean company homepages
+ *
+ * Key invariants:
+ * - All URLs pass through a blocklist before entering the dedup map
+ * - Layer 2 expansion only runs on root-domain-like URLs (no article/sub-page URLs)
+ * - Dedup stores the SHORTEST URL per hostname (closest to root)
  */
 import { findSimilar, searchCompanies } from '../../services/exa.js';
 import type { CompanyInfo, Competitor, PipelineConfig } from '../../types/index.js';
+
+// ── Domains that are never actual company competitors ─────────────────────────
+// Includes: database aggregators, market research, health IT media, blog
+// aggregators, general news/social, academic journals, app stores.
+const BLOCKED_DOMAINS = new Set([
+  // Database aggregators
+  'cbinsights.com', 'crunchbase.com', 'tracxn.com', 'pitchbook.com', 'preqin.com',
+  'angellist.com', 'wellfound.com', 'ycombinator.com', 'workatastartup.com',
+  'g2.com', 'capterra.com', 'getapp.com', 'softwareadvice.com', 'trustpilot.com',
+  'getlatka.com', 'huntscreens.com', 'parsers.vc', 'ycrm.xyz', 'trac.vc',
+  'extruct.ai', 'thecompanycheck.com', 'pitchdeckhunt.com', 'f6s.com',
+  'startupblink.com', 'dealroom.co', 'producthunt.com',
+  // Market research publishers
+  'marketsandmarkets.com', 'marketsandmarketsblog.com', 'grandviewresearch.com',
+  'mordorintelligence.com', 'reportprime.com', 'persistencemarketresearch.com',
+  'marketresearchfuture.com', 'verifiedmarketresearch.com', 'reportsanddata.com',
+  'researchandmarkets.com', 'imarcgroup.com', 'psmarketresearch.com',
+  'snsinsider.com', 'consainsights.com', 'knowledge-sourcing.com',
+  'fairfieldmarketresearch.com', 'marketiquest.com', 'researchdive.com',
+  'media.market.us', 'globenewswire.com', 'businesswire.com',
+  'prnewswire.com', 'einpresswire.com', 'biospace.com', 'reportlinker.com',
+  'alliedmarketresearch.com', 'transparencymarketresearch.com',
+  // Health IT news / media
+  'mobihealthnews.com', 'healthcareittoday.com', 'hitconsultant.net',
+  'healthcaredive.com', 'fiercehealthcare.com', 'fiercehealthit.com',
+  'modernhealthcare.com', 'beckershospitalreview.com', 'medcitynews.com',
+  'healthtechmagazine.net', 'hcinnovationgroup.com', 'healthleadersmedia.com',
+  // Health IT list/blog aggregators
+  'healtharc.io', 'hellorache.com', 'digitalsalutem.com', 'nextdigitalhealth.com',
+  'disrupting.healthcare', 'sisgain.com', 'binariks.com', 'spsoft.com',
+  'evincedev.com', 'delveinsight.com', 'medibillmd.com', 'plugandplaytechcenter.com',
+  'diligenceins.com', 'diff.blog', 'discover-pharma.com', 'intuitionlabs.ai',
+  'digitalsalutem.com', 'thewellnesslondon.com', 'blog.prevounce.com',
+  // General knowledge / Q&A / social
+  'wikipedia.org', 'quora.com', 'reddit.com', 'medium.com',
+  'linkedin.com', 'twitter.com', 'x.com', 'facebook.com', 'instagram.com',
+  'substack.com', 'dev.to', 'hackernews.com', 'ycombinator.news',
+  // General tech / startup news
+  'techcrunch.com', 'forbes.com', 'bloomberg.com', 'wsj.com', 'nytimes.com',
+  'businessinsider.com', 'fortune.com', 'wired.com', 'venturewiredaily.com',
+  'pulse2.com', 'venturebeat.com', 'fastcompany.com', 'inc.com',
+  // Academic
+  'pmc.ncbi.nlm.nih.gov', 'pubmed.ncbi.nlm.nih.gov', 'sciencedirect.com',
+  'nature.com', 'springer.com', 'ncbi.nlm.nih.gov', 'nih.gov',
+  // App stores / misc
+  'play.google.com', 'apps.apple.com', 'globalsources.com',
+  // Other health aggregators seen in cairhealth run
+  'diligenceins.com', 'reportprime.com', 'marketresearch.com',
+  'softwareworld.co', 'marketingscoop.com', 'gethealthie.com',
+  'partssource.com', 'brainvire.com', 'forum.facmedicine.com',
+  'bestreviews.net', 'cleararchhealth.com', 'blog.optimize.health',
+]);
+
+// ── Path patterns that signal an article/list/tag page (not a homepage) ───────
+const BLOCKED_PATH_SEGMENTS = new Set([
+  'blog', 'blogs', 'news', 'tag', 'tags', 'article', 'articles',
+  'insights', 'resources', 'press', 'report', 'reports', 'research',
+  'whitepaper', 'whitepapers', 'webinar', 'webinars', 'case-study', 'case-studies',
+  'industry-analysis', 'market-research', 'market-analysis', 'industry-reports',
+  'topic', 'topics', 'category', 'categories', 'trending',
+  'companies', 'company', 'competitors', 'alternatives',
+]);
 
 function normalizeUrl(url: string): string {
   try {
@@ -13,6 +80,57 @@ function normalizeUrl(url: string): string {
     return u.hostname.replace(/^www\./, '');
   } catch {
     return url.toLowerCase();
+  }
+}
+
+/** Returns true if the URL is a plausible company homepage, not an article/database page. */
+function isValidCompetitor(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '');
+    const path = u.pathname.toLowerCase();
+
+    if (BLOCKED_DOMAINS.has(host)) return false;
+
+    // Block URLs whose path segments contain known non-company keywords,
+    // or look like article slugs (contain digits, many hyphens, very long)
+    const segments = path.split('/').filter(s => s.length > 0);
+    for (const seg of segments) {
+      if (BLOCKED_PATH_SEGMENTS.has(seg)) return false;
+      // Article slug detection: contains a digit, OR has 5+ hyphen-separated parts
+      // e.g. "top-7-rpm-companies", "best-remote-patient-monitoring-companies-2024"
+      if (/\d/.test(seg)) return false;
+      if (seg.split('-').length >= 5) return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * For Layer 2 expansion: only pass URLs that are clean root/near-root domains.
+ * Running findSimilar on an article URL returns more articles; on a homepage it
+ * returns similar companies.
+ */
+function isGoodForExpansion(url: string): boolean {
+  if (!isValidCompetitor(url)) return false;
+  try {
+    const segments = new URL(url).pathname.split('/').filter(s => s.length > 0);
+    return segments.length <= 1; // root or one-level path max
+  } catch {
+    return false;
+  }
+}
+
+/** Root URL for a hostname, used for findSimilar calls. */
+function toRootUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.hostname}/`;
+  } catch {
+    return url;
   }
 }
 
@@ -24,16 +142,20 @@ function deduplicateAndRank(
   const excludeNorm = excludeUrl ? normalizeUrl(excludeUrl) : null;
 
   for (const r of results) {
+    if (!isValidCompetitor(r.url)) continue;
+
     const norm = normalizeUrl(r.url);
     if (excludeNorm && norm === excludeNorm) continue;
     if (!norm || norm.length < 4) continue;
-    // Skip non-company pages
-    if (norm.includes('linkedin.com') || norm.includes('crunchbase.com') ||
-        norm.includes('techcrunch.com') || norm.includes('wikipedia.org') ||
-        norm.includes('forbes.com') || norm.includes('bloomberg.com')) continue;
+
     const existing = seen.get(norm);
     if (existing) {
       existing.count++;
+      // Prefer shorter URL (closer to root domain) for better findSimilar results
+      if (r.url.length < existing.url.length) {
+        existing.url = r.url;
+        if (r.title) existing.title = r.title;
+      }
     } else {
       seen.set(norm, { url: r.url, title: r.title, count: 1 });
     }
@@ -57,33 +179,32 @@ export async function discoverCompetitors(
   // ── Layer 1: all in parallel ──────────────────────────────────────────────
   const layer1Promises: Promise<Array<{ url: string; title?: string }>>[] = [];
 
-  // Primary: findSimilar on the company URL (most effective signal)
+  // Primary: findSimilar on company URL — highest signal source
   if (company.url) {
     layer1Promises.push(findSimilar(company.url, numResults, jobId));
   }
 
-  // Description-based searches (generated by step 1)
+  // Description-based searches from step 1
   for (const desc of company.searchDescriptions) {
     layer1Promises.push(searchCompanies(desc, 15, jobId, 'step2-discover'));
   }
 
-  // Direct competitor searches
+  // Direct competitor queries
   layer1Promises.push(
     searchCompanies(`${company.name} competitors alternative`, 15, jobId, 'step2-discover')
   );
   layer1Promises.push(
-    searchCompanies(`${company.name} vs competitor comparison`, 10, jobId, 'step2-discover')
+    searchCompanies(`${company.name} vs comparison`, 10, jobId, 'step2-discover')
   );
 
-  // Adjacent/ecosystem searches based on descriptions
+  // Adjacent/ecosystem queries using top descriptions
   if (company.searchDescriptions.length > 0) {
     layer1Promises.push(
-      searchCompanies(`${company.searchDescriptions[0]} startup market landscape`, 15, jobId, 'step2-discover')
+      searchCompanies(`${company.searchDescriptions[0]} startup`, 15, jobId, 'step2-discover')
     );
-    // Industry/category adjacent players
     if (company.searchDescriptions[2]) {
       layer1Promises.push(
-        searchCompanies(`${company.searchDescriptions[2]} adjacent companies ecosystem`, 15, jobId, 'step2-discover')
+        searchCompanies(`${company.searchDescriptions[2]} companies ecosystem`, 15, jobId, 'step2-discover')
       );
     }
   }
@@ -94,10 +215,15 @@ export async function discoverCompetitors(
 
   if (layers < 2) return layer1Ranked.slice(0, maxTotal);
 
-  // ── Layer 2: findSimilar on top competitors ───────────────────────────────
-  const topCompetitors = layer1Ranked.slice(0, layer1TopN);
-  const layer2Promises = topCompetitors.map(c =>
-    findSimilar(c.url, 25, jobId).catch(() => [] as any[])
+  // ── Layer 2: findSimilar on top competitors (homepage URLs only) ───────────
+  // Critically: only expand on clean company homepages. Expanding on article
+  // or aggregator URLs produces more articles, not competitors.
+  const expansionCandidates = layer1Ranked
+    .filter(c => isGoodForExpansion(c.url))
+    .slice(0, layer1TopN);
+
+  const layer2Promises = expansionCandidates.map(c =>
+    findSimilar(toRootUrl(c.url), 25, jobId).catch(() => [] as any[])
   );
   const layer2Results = await Promise.all(layer2Promises);
   const allResults = [...layer1Flat, ...layer2Results.flat()];
