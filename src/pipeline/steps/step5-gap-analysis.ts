@@ -1,5 +1,6 @@
 /**
- * Step 5 — Gap analysis: identify missing info, run follow-up Exa queries, re-synthesize.
+ * Step 5 — Gap analysis: identify blind spots, run follow-up Exa queries, re-synthesize.
+ * Focus: investor-critical gaps — risks, missing competitors, regulatory exposure.
  */
 import { llmComplete } from '../../services/llm.js';
 import { searchCompanies, getContents } from '../../services/exa.js';
@@ -20,18 +21,26 @@ export async function runGapAnalysis(
   let enrichedCompetitors = competitors;
 
   for (let round = 0; round < maxRounds; round++) {
-    // Ask LLM what's missing
+    // Ask LLM to identify critical investment gaps — focused on what an investor needs
     const gapResult = await llmComplete({
       step: 'step5-gap-analysis',
       jobId,
-      systemPrompt: 'You are a senior investment analyst reviewing a draft due diligence report. Identify critical gaps or missing information that would materially improve the analysis. Be specific and concise.',
-      userPrompt: `Review this draft report and identify up to 5 specific gaps. For each gap, provide one targeted search query to fill it.
+      systemPrompt: `You are a senior investment analyst doing a final review of a due diligence memo before it goes to an investment committee. Your job is to identify critical blind spots that could cause an investor to make a bad decision. Focus on:
+1. Competitors or market players not mentioned that an investor would expect to see
+2. Regulatory, legal, or compliance risks not addressed
+3. Structural headwinds or market dynamics that are missing
+4. Customer / churn / unit economics concerns not explored
+5. Recent funding, acquisitions, or pivots in this space not captured`,
+      userPrompt: `Review this draft due diligence memo for ${company.name} and identify up to 6 critical gaps. Each gap should be something that — if left unaddressed — could cause an investor to badly misjudge the risk or opportunity.
 
-Return JSON only: { "gaps": [{ "issue": "...", "search_query": "..." }] }
+For each gap, provide one precise search query to find the missing information. Prefer queries that surface competitor data, regulatory issues, or market developments.
+
+Return JSON only:
+{ "gaps": [{ "issue": "...", "search_query": "..." }] }
 
 Draft report:
-${report.substring(0, 6000)}`,
-      maxTokens: 512,
+${report.substring(0, 8000)}`,
+      maxTokens: 768,
     });
 
     let gaps: Array<{ issue: string; search_query: string }> = [];
@@ -46,12 +55,12 @@ ${report.substring(0, 6000)}`,
 
     // Run follow-up searches in parallel
     const searchResults = await Promise.all(
-      gaps.map(g => searchCompanies(g.search_query, 5, jobId, 'step5-gap-analysis').catch(() => []))
+      gaps.map(g => searchCompanies(g.search_query, 10, jobId, 'step5-gap-analysis').catch(() => []))
     );
 
     const newUrls = searchResults.flat().map(r => r.url).filter(Boolean);
     const existingUrls = new Set(enrichedCompetitors.map(c => c.url));
-    const freshUrls = [...new Set(newUrls)].filter(u => !existingUrls.has(u)).slice(0, 10);
+    const freshUrls = [...new Set(newUrls)].filter(u => !existingUrls.has(u)).slice(0, 15);
 
     if (freshUrls.length > 0) {
       const freshContents = await getContents(freshUrls, jobId);
