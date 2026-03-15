@@ -9,45 +9,45 @@ const CSS = `
 
   body {
     font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-    font-size: 9.5pt;
-    line-height: 1.45;
+    font-size: 8pt;
+    line-height: 1.3;
     color: #111;
     background: #fff;
   }
 
   .page {
-    max-width: 780px;
+    max-width: 100%;
     margin: 0 auto;
-    padding: 36px 44px;
+    padding: 0;
   }
 
-  h1 { font-size: 15pt; font-weight: 700; color: #0f172a; margin: 24px 0 10px; border-bottom: 2px solid #0f172a; padding-bottom: 5px; }
-  h2 { font-size: 11.5pt; font-weight: 700; color: #1e3a5f; margin: 18px 0 6px; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; }
-  h3 { font-size: 10pt; font-weight: 700; color: #334155; margin: 12px 0 4px; }
-  h4 { font-size: 9.5pt; font-weight: 700; color: #475569; margin: 10px 0 3px; }
+  h1 { font-size: 12pt; font-weight: 700; color: #0f172a; margin: 14px 0 5px; border-bottom: 2px solid #0f172a; padding-bottom: 3px; }
+  h2 { font-size: 9.5pt; font-weight: 700; color: #1e3a5f; margin: 10px 0 3px; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; }
+  h3 { font-size: 8.5pt; font-weight: 700; color: #334155; margin: 7px 0 2px; }
+  h4 { font-size: 8pt; font-weight: 700; color: #475569; margin: 5px 0 2px; }
 
-  p { margin-bottom: 7px; }
-  ul, ol { margin: 4px 0 8px 20px; }
-  li { margin-bottom: 2px; }
+  p { margin-bottom: 4px; }
+  ul, ol { margin: 2px 0 5px 16px; }
+  li { margin-bottom: 1px; }
 
   strong { font-weight: 700; }
 
   table {
     width: 100%;
     border-collapse: collapse;
-    margin: 10px 0;
-    font-size: 8.5pt;
+    margin: 6px 0;
+    font-size: 7.5pt;
   }
   th {
     background: #0f172a;
     color: white;
-    padding: 5px 8px;
+    padding: 3px 6px;
     text-align: left;
     font-weight: 700;
     white-space: nowrap;
   }
   td {
-    padding: 5px 8px;
+    padding: 3px 6px;
     border-bottom: 1px solid #e2e8f0;
     vertical-align: top;
   }
@@ -55,32 +55,30 @@ const CSS = `
 
   blockquote {
     border-left: 3px solid #3b82f6;
-    padding: 8px 12px;
-    margin: 10px 0;
+    padding: 4px 8px;
+    margin: 5px 0;
     background: #f0f7ff;
     color: #1e40af;
-    font-size: 9pt;
+    font-size: 7.5pt;
   }
 
   code {
     background: #f1f5f9;
-    padding: 1px 4px;
+    padding: 1px 3px;
     border-radius: 2px;
-    font-size: 8.5pt;
+    font-size: 7.5pt;
     font-family: monospace;
   }
 
   a { color: #1e40af; text-decoration: none; }
   a:hover { text-decoration: underline; }
 
-  /* Sources section — compact reference list */
-  h2 + p, h2 ~ p { }
-  .sources-list { font-size: 8pt; color: #475569; }
+  .sources-list { font-size: 7pt; color: #475569; }
 
-  hr { border: none; border-top: 1px solid #cbd5e1; margin: 14px 0; }
+  hr { border: none; border-top: 1px solid #cbd5e1; margin: 7px 0; }
 
   @page {
-    margin: 20mm 16mm;
+    margin: 10mm 12mm;
     size: A4;
   }
 
