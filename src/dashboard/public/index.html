@@ -17,7 +17,7 @@
     <div class="text-white font-bold text-lg tracking-widest mb-8">DECKDROP</div>
     <nav class="space-y-1 flex-1">
       <template x-for="item in nav" :key="item.id">
-        <button @click="page = item.id"
+        <button @click="setPage(item.id)"
           :class="page === item.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'"
           class="w-full text-left px-3 py-2 rounded text-sm transition-colors"
           x-text="item.label"></button>

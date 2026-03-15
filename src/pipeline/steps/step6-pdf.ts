@@ -9,8 +9,8 @@ const CSS = `
 
   body {
     font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-    font-size: 8pt;
-    line-height: 1.3;
+    font-size: 10pt;
+    line-height: 1.35;
     color: #111;
     background: #fff;
   }
@@ -21,10 +21,10 @@ const CSS = `
     padding: 0;
   }
 
-  h1 { font-size: 12pt; font-weight: 700; color: #0f172a; margin: 14px 0 5px; border-bottom: 2px solid #0f172a; padding-bottom: 3px; }
-  h2 { font-size: 9.5pt; font-weight: 700; color: #1e3a5f; margin: 10px 0 3px; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; }
-  h3 { font-size: 8.5pt; font-weight: 700; color: #334155; margin: 7px 0 2px; }
-  h4 { font-size: 8pt; font-weight: 700; color: #475569; margin: 5px 0 2px; }
+  h1 { font-size: 14pt; font-weight: 700; color: #0f172a; margin: 16px 0 6px; border-bottom: 2px solid #0f172a; padding-bottom: 3px; }
+  h2 { font-size: 12pt; font-weight: 700; color: #1e3a5f; margin: 12px 0 4px; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; }
+  h3 { font-size: 10.5pt; font-weight: 700; color: #334155; margin: 8px 0 3px; }
+  h4 { font-size: 10pt; font-weight: 700; color: #475569; margin: 6px 0 2px; }
 
   p { margin-bottom: 4px; }
   ul, ol { margin: 2px 0 5px 16px; }

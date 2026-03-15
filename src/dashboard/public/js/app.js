@@ -394,3 +394,235 @@ function authApp() {
     },
   };
 }
+
+// ─── Root app ─────────────────────────────────────────────────────────────────
+function app() {
+  return {
+    // Auth
+    authed: !!localStorage.getItem('adminSecret'),
+    secretInput: '',
+    authError: false,
+
+    // Nav
+    page: 'overview',
+    nav: [
+      { id: 'overview', label: 'Overview' },
+      { id: 'jobs', label: 'Jobs' },
+      { id: 'users', label: 'Users' },
+      { id: 'config', label: 'Config' },
+      { id: 'test', label: 'Test' },
+    ],
+
+    // Overview
+    stats: {},
+    recentJobs: [],
+
+    // Jobs
+    jobs: [],
+    selectedJobId: null,
+    selectedJob: null,
+    selectedApiCalls: [],
+
+    // Users
+    showAddUser: false,
+    newUserEmail: '',
+    newUserCredits: 1,
+    users: [],
+
+    // Models
+    models: [],
+
+    // Config
+    configItems: [],
+
+    // Prompts
+    prompts: [],
+
+    // Test
+    testUrl: '',
+    testEmail: 'dagnytaggart1997@gmail.com',
+    testRunning: false,
+    testResult: null,
+
+    async init() {
+      if (this.authed) await this.loadPage(this.page);
+    },
+
+    async login() {
+      localStorage.setItem('adminSecret', this.secretInput);
+      try {
+        await apiFetch('/stats');
+        this.authed = true;
+        this.authError = false;
+        await this.loadPage(this.page);
+      } catch {
+        this.authed = false;
+        this.authError = true;
+        localStorage.removeItem('adminSecret');
+      }
+    },
+
+    async setPage(p) {
+      this.page = p;
+      this.selectedJobId = null;
+      await this.loadPage(p);
+    },
+
+    async loadPage(p) {
+      if (p === 'overview') await this.loadOverview();
+      else if (p === 'jobs') await this.loadJobs();
+      else if (p === 'users') await this.loadUsers();
+      else if (p === 'models') await this.loadModels();
+      else if (p === 'config') await this.loadConfig();
+      else if (p === 'prompts') await this.loadPrompts();
+    },
+
+    async loadOverview() {
+      try {
+        const data = await apiFetch('/stats');
+        // API returns flat: { totalJobs, costToday, totalUsers }
+        this.stats = {
+          totalJobs: data.totalJobs ?? data.stats?.totalJobs ?? '—',
+          costToday: data.costToday ?? data.stats?.costToday ?? '—',
+          totalUsers: data.totalUsers ?? data.stats?.totalUsers ?? '—',
+        };
+        const jobs = await apiFetch('/jobs?limit=10');
+        this.recentJobs = Array.isArray(jobs) ? jobs : (jobs.jobs ?? []);
+      } catch {}
+    },
+
+    async loadJobs() {
+      try {
+        const data = await apiFetch('/jobs?limit=50');
+        this.jobs = Array.isArray(data) ? data : (data.jobs ?? []);
+      } catch {}
+    },
+
+    async openJob(id) {
+      this.selectedJobId = id;
+      this.selectedJob = null;
+      this.selectedApiCalls = [];
+      try {
+        const data = await apiFetch('/jobs/' + id);
+        this.selectedJob = data.job;
+        this.selectedApiCalls = data.apiCalls ?? data.api_calls ?? [];
+      } catch {}
+    },
+
+    async loadUsers() {
+      try {
+        const data = await apiFetch('/users');
+        this.users = Array.isArray(data) ? data : (data.users ?? []);
+      } catch {}
+    },
+
+    async addUser() {
+      try {
+        await apiFetch('/users', {
+          method: 'POST',
+          body: JSON.stringify({ email: this.newUserEmail, credits: parseInt(this.newUserCredits) }),
+        });
+        this.newUserEmail = '';
+        this.newUserCredits = 1;
+        this.showAddUser = false;
+        await this.loadUsers();
+      } catch {}
+    },
+
+    async updateCredits(email, credits) {
+      try {
+        await apiFetch('/users/' + encodeURIComponent(email) + '/credits', {
+          method: 'PATCH',
+          body: JSON.stringify({ credits: parseInt(credits) }),
+        });
+        await this.loadUsers();
+      } catch {}
+    },
+
+    async loadModels() {
+      try {
+        const data = await apiFetch('/models');
+        this.models = Array.isArray(data) ? data : (data.models ?? []);
+      } catch {}
+    },
+
+    async toggleModel(m) {
+      try {
+        await apiFetch('/models/' + m.id, {
+          method: 'PATCH',
+          body: JSON.stringify({ enabled: !m.enabled }),
+        });
+        await this.loadModels();
+      } catch {}
+    },
+
+    async loadConfig() {
+      try {
+        const data = await apiFetch('/config');
+        // API returns array of { key, value, description }
+        const arr = Array.isArray(data) ? data : (data.config ?? []);
+        this.configItems = arr.map(r => ({
+          key: r.key,
+          value: r.value,
+          description: r.description ?? '',
+        }));
+      } catch {}
+    },
+
+    async updateConfig(key, value) {
+      try {
+        await apiFetch('/config/' + encodeURIComponent(key), {
+          method: 'PATCH',
+          body: JSON.stringify({ value }),
+        });
+      } catch {}
+    },
+
+    async loadPrompts() {
+      try {
+        const data = await apiFetch('/prompts');
+        this.prompts = Array.isArray(data) ? data : (data.prompts ?? []);
+      } catch {}
+    },
+
+    async updatePrompt(key, content) {
+      try {
+        await apiFetch('/prompts/' + encodeURIComponent(key), {
+          method: 'PATCH',
+          body: JSON.stringify({ template: content }),
+        });
+      } catch {}
+    },
+
+    async runTest() {
+      if (!this.testUrl.trim()) return;
+      this.testRunning = true;
+      this.testResult = null;
+      try {
+        const data = await apiFetch('/test', {
+          method: 'POST',
+          body: JSON.stringify({ url: this.testUrl.trim(), email: this.testEmail }),
+        });
+        this.testResult = data;
+      } catch (e) {
+        this.testResult = { error: e.message };
+      } finally {
+        this.testRunning = false;
+      }
+    },
+
+    formatDate(ts) {
+      if (!ts) return '—';
+      return new Date(ts).toLocaleString();
+    },
+
+    statusClass(status) {
+      return {
+        completed: 'text-green-400',
+        processing: 'text-yellow-400',
+        failed: 'text-red-400',
+        queued: 'text-blue-400',
+      }[status] || 'text-gray-400';
+    },
+  };
+}

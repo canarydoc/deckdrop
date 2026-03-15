@@ -44,9 +44,9 @@ function buildResearchContext(
     ctx += '\n';
   }
 
-  // Reference definitions for Markdown (appended after LLM output so marked resolves them)
+  // Visible numbered source list rendered as clickable markdown links
   const referenceDefinitions = competitors
-    .map((comp, i) => `[${i + 1}]: ${comp.url} "${comp.name.replace(/"/g, "'")}"`)
+    .map((comp, i) => `${i + 1}. [${comp.name}](${comp.url})`)
     .join('\n');
 
   return { context: ctx, referenceDefinitions };
