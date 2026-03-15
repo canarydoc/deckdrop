@@ -75,8 +75,8 @@ export async function getPipelineConfig(): Promise<PipelineConfig> {
 export async function getPrompt(key: string): Promise<string> {
   const { data } = await supabase
     .from('prompts')
-    .select('content')
+    .select('template')
     .eq('key', key)
     .single();
-  return data?.content ?? '';
+  return data?.template ?? '';
 }

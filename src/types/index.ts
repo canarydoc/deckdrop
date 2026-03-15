@@ -6,10 +6,12 @@ export interface Job {
   user_email: string;
   status: JobStatus;
   input_type: InputType;
-  input_url?: string;
-  input_company_name?: string;
-  input_deck_markdown?: string;
-  report_storage_path?: string;
+  company_url?: string;
+  company_name?: string;
+  email_body?: string;
+  deck_markdown?: string;
+  report_markdown?: string;
+  report_url?: string;
   total_cost_usd: number;
   error_message?: string;
   created_at: string;
@@ -26,17 +28,15 @@ export interface User {
 
 export interface ApiCallLog {
   job_id: string;
-  provider: string;
-  model: string;
-  endpoint: string;
-  pipeline_step: string;
-  system_prompt?: string;
-  user_prompt?: string;
+  service: string;
+  step: string;
+  model?: string;
+  prompt?: string;
   response?: string;
   input_tokens?: number;
   output_tokens?: number;
   cost_usd?: number;
-  latency_ms?: number;
+  duration_ms?: number;
 }
 
 export interface LLMRequest {

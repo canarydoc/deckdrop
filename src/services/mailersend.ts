@@ -48,14 +48,13 @@ export async function sendReportEmail(
 
   await logApiCall({
     job_id: jobId,
-    provider: 'mailersend',
+    service: 'mailersend',
+    step: 'step7-email',
     model: 'email',
-    endpoint: 'send',
-    pipeline_step: 'step7-email',
-    user_prompt: `To: ${toEmail}, Subject: Deckdrop report: ${companyName}`,
+    prompt: `To: ${toEmail}, Subject: Deckdrop report: ${companyName}`,
     response: `HTTP ${resp.status}`,
     cost_usd: 0.001,
-    latency_ms: Date.now() - start,
+    duration_ms: Date.now() - start,
   });
 
   if (!resp.ok) {

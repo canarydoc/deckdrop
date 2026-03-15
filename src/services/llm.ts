@@ -53,17 +53,15 @@ export async function llmComplete(req: LLMRequest): Promise<LLMResponse> {
 
   await logApiCall({
     job_id: req.jobId,
-    provider: 'openrouter',
+    service: 'llm',
+    step: req.step,
     model,
-    endpoint: 'chat/completions',
-    pipeline_step: req.step,
-    system_prompt: req.systemPrompt,
-    user_prompt: req.userPrompt,
+    prompt: req.userPrompt,
     response: text,
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cost_usd: costUsd,
-    latency_ms: latencyMs,
+    duration_ms: latencyMs,
   });
 
   return { text, inputTokens, outputTokens, costUsd, model, latencyMs };

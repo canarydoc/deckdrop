@@ -96,8 +96,8 @@ router.post('/', upload.any(), async (req, res) => {
         user_email: senderEmail,
         status: 'queued',
         input_type: inputType,
-        input_url: inputUrl,
-        input_deck_markdown: deckMarkdown,
+        company_url: inputUrl,
+        deck_markdown: deckMarkdown,
         total_cost_usd: 0,
       })
       .select()

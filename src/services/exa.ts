@@ -19,14 +19,13 @@ export async function findSimilar(
   });
   await logApiCall({
     job_id: jobId,
-    provider: 'exa',
+    service: 'exa',
+    step: 'step2-discover',
     model: 'find-similar',
-    endpoint: 'findSimilar',
-    pipeline_step: 'step2-discover',
-    user_prompt: url,
+    prompt: url,
     response: JSON.stringify(results.results?.map(r => r.url) ?? []),
     cost_usd: SEARCH_COST,
-    latency_ms: Date.now() - start,
+    duration_ms: Date.now() - start,
   });
   return (results.results ?? []).map(r => ({ url: r.url, title: r.title ?? undefined, score: r.score ?? undefined }));
 }
@@ -44,14 +43,13 @@ export async function searchCompanies(
   });
   await logApiCall({
     job_id: jobId,
-    provider: 'exa',
+    service: 'exa',
+    step: pipelineStep,
     model: 'search',
-    endpoint: 'search',
-    pipeline_step: pipelineStep,
-    user_prompt: query,
+    prompt: query,
     response: JSON.stringify(results.results?.map(r => r.url) ?? []),
     cost_usd: SEARCH_COST,
-    latency_ms: Date.now() - start,
+    duration_ms: Date.now() - start,
   });
   return (results.results ?? []).map(r => ({ url: r.url, title: r.title ?? undefined, score: r.score ?? undefined }));
 }
@@ -65,14 +63,13 @@ export async function getContents(
   const results = await exa.getContents(urls, { text: { maxCharacters: 3000 } });
   await logApiCall({
     job_id: jobId,
-    provider: 'exa',
+    service: 'exa',
+    step: 'step3-enrich',
     model: 'get-contents',
-    endpoint: 'getContents',
-    pipeline_step: 'step3-enrich',
-    user_prompt: urls.join(', '),
+    prompt: urls.join(', '),
     response: `${results.results?.length ?? 0} pages retrieved`,
     cost_usd: urls.length * CONTENTS_COST,
-    latency_ms: Date.now() - start,
+    duration_ms: Date.now() - start,
   });
   return (results.results ?? []).map(r => ({ url: r.url, text: (r as any).text ?? undefined, title: r.title ?? undefined }));
 }

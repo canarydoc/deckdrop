@@ -26,11 +26,11 @@ export async function runPipeline(job: Job): Promise<void> {
     // ── Step 1: Extract ────────────────────────────────────────────────────
     console.log(`[pipeline][${job.id}] Step 1: Extract`);
     const company = await extractCompanyInfo(
-      job.input_url ?? '',
-      job.input_deck_markdown,
+      job.company_url ?? '',
+      job.deck_markdown,
       job.id
     );
-    await updateJobStatus(job.id, 'processing', { input_company_name: company.name });
+    await updateJobStatus(job.id, 'processing', { company_name: company.name });
 
     // ── Step 2: Discover competitors ───────────────────────────────────────
     console.log(`[pipeline][${job.id}] Step 2: Discover`);
@@ -74,7 +74,8 @@ export async function runPipeline(job: Job): Promise<void> {
     // ── Deduct credit + mark complete ──────────────────────────────────────
     await deductCredit(job.user_email);
     await updateJobStatus(job.id, 'completed', {
-      report_storage_path: storagePath,
+      report_markdown: finalReport,
+      report_url: storagePath,
       total_cost_usd: totalCost,
     });
 

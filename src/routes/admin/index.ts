@@ -129,7 +129,7 @@ router.get('/prompts', async (_req, res) => {
 router.patch('/prompts/:key', async (req, res) => {
   const { data, error } = await supabase
     .from('prompts')
-    .update({ content: req.body.content })
+    .update({ template: req.body.template })
     .eq('key', req.params.key)
     .select()
     .single();
@@ -148,7 +148,7 @@ router.post('/test', async (req, res) => {
       user_email: testEmail,
       status: 'queued',
       input_type: 'url',
-      input_url: url,
+      company_url: url,
       total_cost_usd: 0,
     })
     .select()
