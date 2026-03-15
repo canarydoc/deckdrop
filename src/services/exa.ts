@@ -15,7 +15,6 @@ export async function findSimilar(
   const start = Date.now();
   const results = await exa.findSimilar(url, {
     numResults,
-    type: 'company' as any,
     excludeSourceDomain: true,
   });
   await logApiCall({
@@ -29,7 +28,7 @@ export async function findSimilar(
     cost_usd: SEARCH_COST,
     latency_ms: Date.now() - start,
   });
-  return results.results ?? [];
+  return (results.results ?? []).map(r => ({ url: r.url, title: r.title ?? undefined, score: r.score ?? undefined }));
 }
 
 export async function searchCompanies(
@@ -41,7 +40,6 @@ export async function searchCompanies(
   const start = Date.now();
   const results = await exa.search(query, {
     numResults,
-    type: 'company' as any,
     useAutoprompt: true,
   });
   await logApiCall({
@@ -55,7 +53,7 @@ export async function searchCompanies(
     cost_usd: SEARCH_COST,
     latency_ms: Date.now() - start,
   });
-  return results.results ?? [];
+  return (results.results ?? []).map(r => ({ url: r.url, title: r.title ?? undefined, score: r.score ?? undefined }));
 }
 
 export async function getContents(
@@ -76,5 +74,5 @@ export async function getContents(
     cost_usd: urls.length * CONTENTS_COST,
     latency_ms: Date.now() - start,
   });
-  return results.results ?? [];
+  return (results.results ?? []).map(r => ({ url: r.url, text: (r as any).text ?? undefined, title: r.title ?? undefined }));
 }
