@@ -10,13 +10,14 @@ const SYNTHESIS_SYSTEM = `You are a senior analyst at a bulge-bracket investment
 - Surface risks the founders likely downplay
 - Be precise about market sizing — call out inflated TAM claims
 - Dense, tight prose. No filler sentences.
-- Format output as clean Markdown with tables`;
+- Format output as clean Markdown with tables
+- Cite sources inline using reference-style Markdown links: [Company Name][N] where N is the source number. Only cite sources from the provided numbered source list. Do not invent URLs.`;
 
 function buildResearchContext(
   company: CompanyInfo,
   competitors: EnrichedCompetitor[],
   config: PipelineConfig
-): string {
+): { context: string; referenceDefinitions: string } {
   const maxTokens = parseInt(config.max_context_tokens ?? '80000', 10);
 
   let ctx = `# INDEX COMPANY\n**Name:** ${company.name}\n`;
@@ -26,7 +27,14 @@ function buildResearchContext(
     ctx += `## Pitch Deck Content\n${company.deckMarkdown.substring(0, 6000)}\n\n`;
   }
 
-  ctx += `# DISCOVERED COMPETITORS & ECOSYSTEM (${competitors.length} total)\n\n`;
+  // Numbered source list so LLM can cite [Name][N]
+  ctx += `# NUMBERED SOURCE LIST\nUse [Company Name][N] to cite these sources inline in your analysis.\n\n`;
+  competitors.forEach((comp, i) => {
+    ctx += `[${i + 1}] ${comp.name} — ${comp.url}\n`;
+  });
+  ctx += '\n';
+
+  ctx += `# COMPETITOR RESEARCH (${competitors.length} sources)\n\n`;
   for (const comp of competitors) {
     ctx += `## ${comp.name}\n**URL:** ${comp.url}\n`;
     if (comp.fullContent) {
@@ -36,7 +44,12 @@ function buildResearchContext(
     ctx += '\n';
   }
 
-  return ctx;
+  // Reference definitions for Markdown (appended after LLM output so marked resolves them)
+  const referenceDefinitions = competitors
+    .map((comp, i) => `[${i + 1}]: ${comp.url} "${comp.name.replace(/"/g, "'")}"`)
+    .join('\n');
+
+  return { context: ctx, referenceDefinitions };
 }
 
 export async function synthesizeReport(
@@ -45,7 +58,7 @@ export async function synthesizeReport(
   config: PipelineConfig,
   jobId: string
 ): Promise<string> {
-  const researchContext = buildResearchContext(company, competitors, config);
+  const { context: researchContext, referenceDefinitions } = buildResearchContext(company, competitors, config);
 
   const result = await llmComplete({
     step: 'step4-synthesize',
@@ -149,5 +162,10 @@ ${researchContext}`,
     temperature: 0.3,
   });
 
-  return result.text;
+  // Append reference definitions so Markdown renderers resolve [Name][N] to clickable links
+  const reportWithRefs = referenceDefinitions
+    ? `${result.text}\n\n---\n\n## Sources\n\n${referenceDefinitions}`
+    : result.text;
+
+  return reportWithRefs;
 }

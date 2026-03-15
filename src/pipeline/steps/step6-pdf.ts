@@ -70,6 +70,13 @@ const CSS = `
     font-family: monospace;
   }
 
+  a { color: #1e40af; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Sources section — compact reference list */
+  h2 + p, h2 ~ p { }
+  .sources-list { font-size: 8pt; color: #475569; }
+
   hr { border: none; border-top: 1px solid #cbd5e1; margin: 14px 0; }
 
   @page {
