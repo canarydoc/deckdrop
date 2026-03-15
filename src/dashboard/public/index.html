@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deckdrop Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="/admin/js/app.js" defer></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans">
+
+<div x-data="app" class="flex min-h-screen">
+
+  <!-- Sidebar -->
+  <div class="w-56 bg-gray-900 border-r border-gray-800 flex flex-col py-6 px-4 fixed h-full">
+    <div class="text-white font-bold text-lg tracking-widest mb-8">DECKDROP</div>
+    <nav class="space-y-1 flex-1">
+      <template x-for="item in nav" :key="item.id">
+        <button @click="page = item.id"
+          :class="page === item.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'"
+          class="w-full text-left px-3 py-2 rounded text-sm transition-colors"
+          x-text="item.label"></button>
+      </template>
+    </nav>
+    <div class="text-xs text-gray-600 mt-4">v2.0</div>
+  </div>
+
+  <!-- Main content -->
+  <div class="ml-56 flex-1 p-8">
+
+    <!-- Auth gate -->
+    <div x-show="!authed" class="max-w-sm mx-auto mt-24">
+      <h1 class="text-2xl font-bold mb-6">Admin Login</h1>
+      <input x-model="secretInput" type="password" placeholder="Admin secret"
+        class="w-full bg-gray-800 border border-gray-700 rounded px-4 py-2 mb-3 text-sm"
+        @keydown.enter="login()">
+      <button @click="login()" class="w-full bg-blue-600 hover:bg-blue-500 rounded px-4 py-2 text-sm font-medium">Login</button>
+      <p x-show="authError" class="text-red-400 text-sm mt-2">Invalid secret</p>
+    </div>
+
+    <!-- Dashboard pages -->
+    <div x-show="authed">
+
+      <!-- Overview -->
+      <div x-show="page === 'overview'">
+        <h2 class="text-xl font-semibold mb-6">Overview</h2>
+        <div class="grid grid-cols-3 gap-4 mb-8">
+          <div class="bg-gray-900 rounded-lg p-5 border border-gray-800">
+            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Jobs</div>
+            <div class="text-3xl font-bold" x-text="stats.totalJobs ?? '—'"></div>
+          </div>
+          <div class="bg-gray-900 rounded-lg p-5 border border-gray-800">
+            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Cost Today</div>
+            <div class="text-3xl font-bold">$<span x-text="stats.costToday ?? '—'"></span></div>
+          </div>
+          <div class="bg-gray-900 rounded-lg p-5 border border-gray-800">
+            <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Users</div>
+            <div class="text-3xl font-bold" x-text="stats.totalUsers ?? '—'"></div>
+          </div>
+        </div>
+        <div class="bg-gray-900 rounded-lg border border-gray-800 p-5">
+          <h3 class="font-medium mb-4">Recent Jobs</h3>
+          <table class="w-full text-sm">
+            <thead><tr class="text-gray-500 text-xs uppercase">
+              <th class="text-left pb-2">User</th><th class="text-left pb-2">Company</th>
+              <th class="text-left pb-2">Status</th><th class="text-left pb-2">Cost</th>
+              <th class="text-left pb-2">Date</th>
+            </tr></thead>
+            <tbody>
+              <template x-for="job in recentJobs" :key="job.id">
+                <tr class="border-t border-gray-800 hover:bg-gray-800 cursor-pointer" @click="openJob(job.id)">
+                  <td class="py-2 pr-4 text-gray-300" x-text="job.user_email"></td>
+                  <td class="py-2 pr-4" x-text="job.input_company_name ?? job.input_url ?? '—'"></td>
+                  <td class="py-2 pr-4">
+                    <span :class="statusClass(job.status)" class="px-2 py-0.5 rounded text-xs font-medium" x-text="job.status"></span>
+                  </td>
+                  <td class="py-2 pr-4 text-gray-400" x-text="job.total_cost_usd ? '$' + Number(job.total_cost_usd).toFixed(4) : '—'"></td>
+                  <td class="py-2 text-gray-500 text-xs" x-text="formatDate(job.created_at)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Jobs -->
+      <div x-show="page === 'jobs'">
+        <h2 class="text-xl font-semibold mb-6">Jobs</h2>
+        <div x-show="!selectedJobId">
+          <table class="w-full text-sm bg-gray-900 rounded-lg border border-gray-800">
+            <thead><tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
+              <th class="text-left p-3">User</th><th class="text-left p-3">Company</th>
+              <th class="text-left p-3">Type</th><th class="text-left p-3">Status</th>
+              <th class="text-left p-3">Cost</th><th class="text-left p-3">Created</th>
+            </tr></thead>
+            <tbody>
+              <template x-for="job in jobs" :key="job.id">
+                <tr class="border-t border-gray-800 hover:bg-gray-800 cursor-pointer" @click="openJob(job.id)">
+                  <td class="p-3 text-gray-300" x-text="job.user_email"></td>
+                  <td class="p-3" x-text="job.input_company_name ?? job.input_url ?? '—'"></td>
+                  <td class="p-3 text-gray-400 text-xs" x-text="job.input_type"></td>
+                  <td class="p-3"><span :class="statusClass(job.status)" class="px-2 py-0.5 rounded text-xs font-medium" x-text="job.status"></span></td>
+                  <td class="p-3 text-gray-400" x-text="job.total_cost_usd ? '$' + Number(job.total_cost_usd).toFixed(4) : '—'"></td>
+                  <td class="p-3 text-gray-500 text-xs" x-text="formatDate(job.created_at)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Job detail -->
+        <div x-show="selectedJobId && selectedJob">
+          <button @click="selectedJobId = null" class="text-blue-400 text-sm mb-4 hover:text-blue-300">← Back to jobs</button>
+          <div class="bg-gray-900 rounded-lg border border-gray-800 p-5 mb-4">
+            <div class="flex justify-between items-start">
+              <div>
+                <h3 class="font-semibold text-lg" x-text="selectedJob?.input_company_name ?? selectedJob?.input_url"></h3>
+                <p class="text-gray-400 text-sm mt-1" x-text="selectedJob?.user_email"></p>
+              </div>
+              <span :class="statusClass(selectedJob?.status)" class="px-3 py-1 rounded text-xs font-medium" x-text="selectedJob?.status"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-4 mt-4 text-sm">
+              <div><span class="text-gray-500">Total Cost:</span> $<span x-text="Number(selectedJob?.total_cost_usd ?? 0).toFixed(4)"></span></div>
+              <div><span class="text-gray-500">Type:</span> <span x-text="selectedJob?.input_type"></span></div>
+              <div><span class="text-gray-500">Created:</span> <span x-text="formatDate(selectedJob?.created_at)"></span></div>
+            </div>
+            <div x-show="selectedJob?.error_message" class="mt-3 text-red-400 text-sm bg-red-950 p-3 rounded" x-text="selectedJob?.error_message"></div>
+          </div>
+
+          <h4 class="font-medium mb-3 text-gray-300">API Calls (<span x-text="selectedApiCalls.length"></span>)</h4>
+          <div class="space-y-3">
+            <template x-for="call in selectedApiCalls" :key="call.id">
+              <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <div class="flex justify-between items-center mb-2">
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs bg-gray-700 px-2 py-0.5 rounded" x-text="call.pipeline_step"></span>
+                    <span class="text-xs text-gray-400" x-text="call.model"></span>
+                  </div>
+                  <div class="text-xs text-gray-500">
+                    $<span x-text="Number(call.cost_usd ?? 0).toFixed(5)"></span> ·
+                    <span x-text="call.latency_ms"></span>ms ·
+                    <span x-text="(call.input_tokens ?? 0) + '+' + (call.output_tokens ?? 0)"></span> tokens
+                  </div>
+                </div>
+                <details class="text-xs">
+                  <summary class="text-gray-400 cursor-pointer hover:text-gray-300">View prompts & response</summary>
+                  <div class="mt-3 space-y-2">
+                    <div x-show="call.system_prompt" class="bg-gray-800 p-2 rounded">
+                      <div class="text-gray-500 mb-1">System:</div>
+                      <pre class="whitespace-pre-wrap text-gray-300" x-text="call.system_prompt"></pre>
+                    </div>
+                    <div class="bg-gray-800 p-2 rounded">
+                      <div class="text-gray-500 mb-1">User:</div>
+                      <pre class="whitespace-pre-wrap text-gray-300" x-text="call.user_prompt"></pre>
+                    </div>
+                    <div class="bg-gray-800 p-2 rounded">
+                      <div class="text-gray-500 mb-1">Response:</div>
+                      <pre class="whitespace-pre-wrap text-gray-300" x-text="call.response"></pre>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div x-show="page === 'users'">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-semibold">Users</h2>
+          <button @click="showAddUser = !showAddUser" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-sm font-medium">+ Add User</button>
+        </div>
+        <div x-show="showAddUser" class="bg-gray-900 border border-gray-800 rounded-lg p-4 mb-4">
+          <div class="flex gap-3">
+            <input x-model="newUserEmail" type="email" placeholder="Email" class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+            <input x-model="newUserCredits" type="number" placeholder="Credits" class="w-24 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+            <button @click="addUser()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-sm">Add</button>
+          </div>
+        </div>
+        <table class="w-full text-sm bg-gray-900 rounded-lg border border-gray-800">
+          <thead><tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
+            <th class="text-left p-3">Email</th><th class="text-left p-3">Credits</th>
+            <th class="text-left p-3">Member Since</th><th class="text-left p-3">Actions</th>
+          </tr></thead>
+          <tbody>
+            <template x-for="user in users" :key="user.email">
+              <tr class="border-t border-gray-800">
+                <td class="p-3" x-text="user.email"></td>
+                <td class="p-3">
+                  <input type="number" :value="user.credits" class="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm"
+                    @change="updateCredits(user.email, $event.target.value)">
+                </td>
+                <td class="p-3 text-gray-500 text-xs" x-text="formatDate(user.created_at)"></td>
+                <td class="p-3 text-xs text-gray-500" x-text="user.email"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Models -->
+      <div x-show="page === 'models'">
+        <h2 class="text-xl font-semibold mb-6">Models</h2>
+        <table class="w-full text-sm bg-gray-900 rounded-lg border border-gray-800">
+          <thead><tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
+            <th class="text-left p-3">Model ID</th><th class="text-left p-3">Provider</th>
+            <th class="text-left p-3">Input $/1M</th><th class="text-left p-3">Output $/1M</th>
+            <th class="text-left p-3">Enabled</th><th class="text-left p-3">Notes</th>
+          </tr></thead>
+          <tbody>
+            <template x-for="m in models" :key="m.id">
+              <tr class="border-t border-gray-800">
+                <td class="p-3 font-mono text-xs text-blue-300" x-text="m.model_id"></td>
+                <td class="p-3 text-gray-400" x-text="m.provider"></td>
+                <td class="p-3 text-gray-300">$<span x-text="m.input_cost_per_1m_usd"></span></td>
+                <td class="p-3 text-gray-300">$<span x-text="m.output_cost_per_1m_usd"></span></td>
+                <td class="p-3">
+                  <button @click="toggleModel(m)"
+                    :class="m.enabled ? 'bg-green-800 text-green-300' : 'bg-gray-700 text-gray-400'"
+                    class="px-2 py-0.5 rounded text-xs" x-text="m.enabled ? 'Yes' : 'No'"></button>
+                </td>
+                <td class="p-3 text-gray-500 text-xs" x-text="m.notes ?? ''"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Config -->
+      <div x-show="page === 'config'">
+        <h2 class="text-xl font-semibold mb-6">Pipeline Config</h2>
+        <div class="space-y-3">
+          <template x-for="item in configItems" :key="item.key">
+            <div class="bg-gray-900 border border-gray-800 rounded-lg p-4 flex items-center justify-between gap-4">
+              <div class="flex-1">
+                <div class="font-mono text-sm text-blue-300" x-text="item.key"></div>
+                <div class="text-xs text-gray-500 mt-0.5" x-text="item.description ?? ''"></div>
+              </div>
+              <input :value="item.value" class="w-48 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm font-mono"
+                @change="updateConfig(item.key, $event.target.value)">
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Prompts -->
+      <div x-show="page === 'prompts'">
+        <h2 class="text-xl font-semibold mb-6">Prompts</h2>
+        <div class="space-y-4">
+          <template x-for="prompt in prompts" :key="prompt.key">
+            <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
+              <div class="font-mono text-sm text-blue-300 mb-2" x-text="prompt.key"></div>
+              <div class="text-xs text-gray-500 mb-3" x-text="prompt.description ?? ''"></div>
+              <textarea :value="prompt.content" rows="6"
+                class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono resize-y"
+                @change="updatePrompt(prompt.key, $event.target.value)"></textarea>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Test -->
+      <div x-show="page === 'test'">
+        <h2 class="text-xl font-semibold mb-6">Test Pipeline</h2>
+        <div class="max-w-lg bg-gray-900 border border-gray-800 rounded-lg p-6">
+          <div class="mb-4">
+            <label class="text-sm text-gray-400 mb-1 block">Company URL</label>
+            <input x-model="testUrl" type="url" placeholder="https://example.com"
+              class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+          </div>
+          <div class="mb-4">
+            <label class="text-sm text-gray-400 mb-1 block">Send report to email</label>
+            <input x-model="testEmail" type="email" placeholder="dagnytaggart1997@gmail.com"
+              class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+          </div>
+          <button @click="runTest()" :disabled="testRunning"
+            class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded px-4 py-2 text-sm font-medium">
+            <span x-text="testRunning ? 'Running...' : 'Run Pipeline'"></span>
+          </button>
+          <div x-show="testResult" class="mt-4 text-sm">
+            <div x-show="testResult?.ok" class="text-green-400">
+              ✓ Job started: <span class="font-mono text-xs" x-text="testResult?.jobId"></span>
+              <br><span class="text-gray-400">Check Jobs page for progress. PDF will email to <span x-text="testEmail"></span></span>
+            </div>
+            <div x-show="testResult?.error" class="text-red-400" x-text="testResult?.error"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
