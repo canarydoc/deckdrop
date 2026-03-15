@@ -405,6 +405,7 @@ function app() {
 
     // Nav
     page: 'overview',
+    menuOpen: false,
     nav: [
       { id: 'overview', label: 'Overview' },
       { id: 'jobs', label: 'Jobs' },
