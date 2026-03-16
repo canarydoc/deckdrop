@@ -1,10 +1,16 @@
 /**
  * Step 2 — Competitor discovery via Exa.
  *
- * Layer 1: findSimilar(25) on company URL + dual search per description
- *          (company-filtered + unfiltered web) — 7 parallel calls total.
- * Layer 2: LLM picks top 2-3 closest direct competitors, then findSimilar
- *          expands on those URLs for deeper discovery.
+ * Layer 1 (all parallel):
+ *   - findSimilar(25) on company URL
+ *   - 3× searchCompanyCategory (Triple Tap descriptions)
+ *   - 1× searchWeb (broadest description only — cost-efficient)
+ *   - 1× searchCompanyCategory for incumbents/leaders
+ *   - 1× searchCompanyCategory for direct "{name} competitors"
+ *   = 7 parallel calls
+ *
+ * Layer 2:
+ *   LLM picks top 3 established direct competitors, findSimilar expands.
  *
  * Key invariants:
  * - All URLs pass through a blocklist before entering the dedup map
@@ -16,8 +22,6 @@ import { llmComplete } from '../../services/llm.js';
 import type { CompanyInfo, Competitor, PipelineConfig } from '../../types/index.js';
 
 // ── Domains that are never actual company competitors ─────────────────────────
-// Includes: database aggregators, market research, health IT media, blog
-// aggregators, general news/social, academic journals, app stores.
 const BLOCKED_DOMAINS = new Set([
   // Database aggregators
   'cbinsights.com', 'crunchbase.com', 'tracxn.com', 'pitchbook.com', 'preqin.com',
@@ -65,6 +69,8 @@ const BLOCKED_DOMAINS = new Set([
   'softwareworld.co', 'marketingscoop.com', 'gethealthie.com',
   'partssource.com', 'brainvire.com', 'forum.facmedicine.com',
   'bestreviews.net', 'cleararchhealth.com', 'blog.optimize.health',
+  // Generic news / press release sites
+  'lasvegassun.com', 'desmoinesregister.com',
 ]);
 
 // ── Path patterns that signal an article/list/tag page (not a homepage) ───────
@@ -86,7 +92,6 @@ function normalizeUrl(url: string): string {
   }
 }
 
-/** Returns true if the URL is a plausible company homepage, not an article/database page. */
 function isValidCompetitor(url: string): boolean {
   try {
     const u = new URL(url);
@@ -108,11 +113,6 @@ function isValidCompetitor(url: string): boolean {
   }
 }
 
-/**
- * For Layer 2 expansion: only pass URLs that are clean root/near-root domains.
- * Running findSimilar on an article URL returns more articles; on a homepage it
- * returns similar companies.
- */
 function isGoodForExpansion(url: string): boolean {
   if (!isValidCompetitor(url)) return false;
   try {
@@ -123,7 +123,6 @@ function isGoodForExpansion(url: string): boolean {
   }
 }
 
-/** Root URL for a hostname, used for findSimilar calls. */
 function toRootUrl(url: string): string {
   try {
     const u = new URL(url);
@@ -171,45 +170,56 @@ export async function discoverCompetitors(
 ): Promise<Competitor[]> {
   const numResults = parseInt(config.exa_find_similar_results ?? '25', 10);
   const layers = parseInt(config.exa_competitor_layers ?? '2', 10);
-  const maxTotal = parseInt(config.exa_max_competitors_total ?? '35', 10);
+  const maxTotal = parseInt(config.exa_max_competitors_total ?? '55', 10);
   const webSearchEnabled = config.exa_web_search_enabled !== 'false';
   const llmSelectEnabled = config.exa_layer2_llm_select !== 'false';
   const layer2TopN = parseInt(config.exa_layer2_top_n ?? '3', 10);
 
   // ── Layer 1: all in parallel ──────────────────────────────────────────────
-  // 1 findSimilar + (3 descriptions × 2 search variants) = 7 parallel calls
-  const layer1Promises: Promise<Array<{ url: string; title?: string; score?: number; highlights?: string[]; summary?: string }>>[] = [];
+  type EResult = { url: string; title?: string; score?: number; highlights?: string[]; summary?: string };
+  const layer1Promises: Promise<EResult[]>[] = [];
 
-  // Primary: findSimilar on company URL — highest signal source
+  // 1. findSimilar on company URL — highest signal source
   if (company.url) {
     layer1Promises.push(findSimilar(company.url, numResults, jobId, config));
   }
 
-  // Dual search per description: company-filtered + unfiltered web
+  // 2. searchCompanyCategory per description (all 3 Triple Tap angles)
   for (const desc of company.searchDescriptions) {
-    // WITH category:"company" + highlights
     layer1Promises.push(searchCompanyCategory(desc, numResults, jobId, config));
-
-    // WITHOUT category + summary (catches companies Exa's index misses)
-    if (webSearchEnabled) {
-      layer1Promises.push(searchWeb(desc, numResults, jobId, config));
-    }
   }
+
+  // 3. searchWeb on ONE description only (the broadest — index 1: Outcome/Value)
+  //    This catches companies outside Exa's company index without tripling cost.
+  if (webSearchEnabled && company.searchDescriptions.length > 1) {
+    layer1Promises.push(searchWeb(company.searchDescriptions[1], numResults, jobId, config));
+  }
+
+  // 4. Incumbent/leader search — catches established players that startup-focused
+  //    descriptions miss (Waystar, AKASA, R1 RCM, etc.)
+  const incumbentQuery = `largest established ${company.description.split('.')[0]} companies market leaders`;
+  layer1Promises.push(searchCompanyCategory(incumbentQuery, 15, jobId, config));
+
+  // 5. Direct competitor query — explicitly named comparisons
+  layer1Promises.push(
+    searchCompanyCategory(`${company.name} competitors alternatives vs`, 15, jobId, config)
+  );
 
   const layer1Results = await Promise.all(layer1Promises);
   const layer1Flat = layer1Results.flat();
   const layer1Ranked = deduplicateAndRank(layer1Flat, company.url);
 
+  console.log(`[step2][${jobId}] Layer 1: ${layer1Flat.length} raw → ${layer1Ranked.length} unique companies`);
+
   if (layers < 2) return layer1Ranked.slice(0, maxTotal);
 
-  // ── Layer 2: LLM-guided or frequency-based expansion ─────────────────────
+  // ── Layer 2: LLM-guided expansion on best competitors ─────────────────────
   let expansionUrls: string[];
 
   if (llmSelectEnabled && layer1Ranked.length > 0) {
-    // Ask LLM to pick the closest direct competitors for expansion
     const candidateList = layer1Ranked
       .filter(c => isGoodForExpansion(c.url))
-      .slice(0, 15)
+      .slice(0, 20)
       .map(c => `- ${c.name} (${c.url})`)
       .join('\n');
 
@@ -217,14 +227,20 @@ export async function discoverCompetitors(
       const selectResult = await llmComplete({
         step: 'step2-discover',
         jobId,
-        systemPrompt: 'You are a competitive analysis expert. Select the companies that are the most direct competitors. Return valid JSON only.',
-        userPrompt: `Given the index company: ${company.name} (${company.url ?? 'no URL'})
+        systemPrompt: 'You are a competitive analysis expert. Return valid JSON only.',
+        userPrompt: `Index company: ${company.name} (${company.url ?? 'no URL'})
 Description: ${company.description}
 
 Candidate competitors:
 ${candidateList}
 
-Select the ${layer2TopN} companies that are the MOST DIRECT competitors — same product category, same buyer, same problem. Exclude aggregators, news sites, and tangentially related companies.
+Select exactly ${layer2TopN} companies that are the MOST DIRECT competitors — same product category, same buyer, same core problem.
+
+CRITICAL: Only select companies that are ESTABLISHED with real products and real customers. Do NOT select:
+- Generic automation/RPA platforms (e.g. flobotics.io, openbots.ai)
+- Companies with thin/parked/template websites
+- Aggregators, news sites, or consulting firms
+- Companies in adjacent but different categories
 
 Return JSON: { "urls": ["url1", "url2", "url3"] }`,
         maxTokens: 256,
@@ -233,26 +249,28 @@ Return JSON: { "urls": ["url1", "url2", "url3"] }`,
       const parsed = JSON.parse(selectResult.text.replace(/```json\n?|\n?```/g, '').trim());
       expansionUrls = (parsed.urls ?? []).filter((u: string) => isGoodForExpansion(u));
     } catch {
-      // Fallback to frequency-based
       expansionUrls = layer1Ranked
         .filter(c => isGoodForExpansion(c.url))
         .slice(0, layer2TopN)
         .map(c => c.url);
     }
   } else {
-    // Frequency-based fallback
     expansionUrls = layer1Ranked
       .filter(c => isGoodForExpansion(c.url))
       .slice(0, layer2TopN)
       .map(c => c.url);
   }
 
-  // Run findSimilar on selected expansion URLs
+  console.log(`[step2][${jobId}] Layer 2 expansion on: ${expansionUrls.join(', ')}`);
+
   const layer2Promises = expansionUrls.map(url =>
     findSimilar(toRootUrl(url), numResults, jobId, config).catch(() => [] as any[])
   );
   const layer2Results = await Promise.all(layer2Promises);
   const allResults = [...layer1Flat, ...layer2Results.flat()];
 
-  return deduplicateAndRank(allResults, company.url).slice(0, maxTotal);
+  const final = deduplicateAndRank(allResults, company.url).slice(0, maxTotal);
+  console.log(`[step2][${jobId}] Final: ${final.length} competitors after dedup + cap`);
+
+  return final;
 }

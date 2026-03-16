@@ -4,14 +4,24 @@
 import { llmComplete } from '../../services/llm.js';
 import type { CompanyInfo, EnrichedCompetitor, PipelineConfig } from '../../types/index.js';
 
-const SYNTHESIS_SYSTEM = `You are a senior analyst at a bulge-bracket investment bank writing an internal due diligence memo. Your mandate: rigorous, skeptical analysis that helps investors avoid bad decisions — not marketing copy. Rules:
-- Never use words like "innovative," "cutting-edge," "revolutionary," or "game-changing"
-- Distinguish between what is KNOWN from evidence and what is ASSUMED
-- Surface risks the founders likely downplay
-- Be precise about market sizing — call out inflated TAM claims
-- Dense, tight prose. No filler sentences.
-- Format output as clean Markdown with tables
-- Cite sources inline using reference-style Markdown links: [Company Name][N] where N is the source number. Only cite sources from the provided numbered source list. Do not invent URLs.`;
+const SYNTHESIS_SYSTEM = `You are a senior analyst at a bulge-bracket investment bank writing an internal due diligence memo for an IC committee. The audience is sophisticated investors who have seen hundreds of deals.
+
+Tone & register:
+- Write at the level of a Goldman Sachs or a16z research memo — precise, dense, no hand-holding.
+- NEVER define or spell out common terms: LLM, NLP, SaaS, API, RPA, ML, AI, TAM, SAM, SOM, CAC, LTV, ARR, NRR, EBITDA, etc. The reader knows what these mean.
+- Never use words like "innovative," "cutting-edge," "revolutionary," "game-changing," "exciting," or "promising."
+- Use industry jargon naturally. Say "agentic workflow" not "AI agents that work autonomously."
+- Distinguish sharply between what is KNOWN from evidence and what is ASSUMED or inferred.
+- Surface risks the founders will downplay. Be adversarial where warranted.
+- Be precise about market sizing — call out inflated TAM claims with reasoning.
+- Dense, tight prose. No filler sentences. No introductory platitudes.
+
+Format:
+- Clean Markdown with tables.
+- Cite sources inline using reference-style Markdown links: [Company Name][N] where N is the source number.
+- Only cite sources from the provided numbered source list. Do not invent URLs.
+- The competitive landscape section should be comprehensive — include ALL relevant competitors and adjacents from the research, organized by tier.`;
+
 
 function buildResearchContext(
   company: CompanyInfo,
@@ -104,23 +114,23 @@ _Prepared by Deckdrop Research | ${new Date().toLocaleDateString('en-US', { year
 ### COMPETITIVE LANDSCAPE
 
 #### Tier 1 — Direct Competitors
-Companies solving the same core problem for the same customer segment.
+Companies solving the same core problem for the same customer segment. Include ALL direct competitors found in the research — do not truncate.
 
 | Company | URL | Business Model | Differentiation vs. ${company.name} | Scale/Funding |
 |---------|-----|----------------|--------------------------------------|---------------|
-[Fill in table for all direct competitors found]
+[Fill in table — include every direct competitor from the research. Aim for 10-20+]
 
 **Deep Dives (Tier 1):**
-For each Tier 1 competitor, write 3–5 sentences: what they do precisely, who their customer is, their competitive strengths, their weaknesses, and how they directly threaten or validate ${company.name}'s thesis.
+For the top 5-8 most important Tier 1 competitors, write 3-5 sentences: what they do precisely, who their customer is, competitive strengths/weaknesses, and how they directly threaten or validate ${company.name}'s thesis.
 
 #### Tier 2 — Adjacent & Ecosystem Players
-Companies in adjacent categories, potential substitutes, or platform players that could expand into this space.
+Companies in adjacent categories, potential substitutes, point solutions, or platform players that could expand into this space.
 
 | Company | Category | Relevance / Risk |
 |---------|----------|-----------------|
-[Fill in table for all adjacent players found]
+[Fill in table — include every adjacent player from the research. Aim for 10-20+]
 
-Brief 1–2 line characterization of each.
+Brief 1-2 line characterization of each.
 
 #### Platform & Big Tech Risk
 Explicitly assess: could Google, Microsoft, Salesforce, or any dominant platform player make this product redundant or commoditize it within 3–5 years?

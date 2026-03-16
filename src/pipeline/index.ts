@@ -39,7 +39,7 @@ export async function runPipeline(job: Job): Promise<void> {
 
     // ── Step 3: Enrich ─────────────────────────────────────────────────────
     console.log(`[pipeline][${job.id}] Step 3: Enrich`);
-    const enriched = await enrichCompetitors(competitors, job.id);
+    const enriched = await enrichCompetitors(competitors, job.id, config);
 
     // ── Step 4: Synthesize ─────────────────────────────────────────────────
     console.log(`[pipeline][${job.id}] Step 4: Synthesize`);
