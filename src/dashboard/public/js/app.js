@@ -411,6 +411,7 @@ function app() {
       { id: 'jobs', label: 'Jobs' },
       { id: 'users', label: 'Users' },
       { id: 'config', label: 'Config' },
+      { id: 'prompts', label: 'Prompts' },
       { id: 'test', label: 'Test' },
     ],
 
