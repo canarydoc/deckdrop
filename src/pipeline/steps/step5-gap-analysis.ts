@@ -3,7 +3,7 @@
  * Focus: investor-critical gaps — risks, missing competitors, regulatory exposure.
  */
 import { llmComplete } from '../../services/llm.js';
-import { searchCompanies, getContents } from '../../services/exa.js';
+import { searchCompanyCategory, getContents } from '../../services/exa.js';
 import { synthesizeReport } from './step4-synthesize.js';
 import type { CompanyInfo, EnrichedCompetitor, PipelineConfig } from '../../types/index.js';
 
@@ -55,7 +55,7 @@ ${report.substring(0, 8000)}`,
 
     // Run follow-up searches in parallel
     const searchResults = await Promise.all(
-      gaps.map(g => searchCompanies(g.search_query, 10, jobId, 'step5-gap-analysis').catch(() => []))
+      gaps.map(g => searchCompanyCategory(g.search_query, 10, jobId, config, 'step5-gap-analysis').catch(() => []))
     );
 
     const newUrls = searchResults.flat().map(r => r.url).filter(Boolean);

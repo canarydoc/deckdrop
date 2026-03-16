@@ -12,7 +12,7 @@ import type { CompanyInfo } from '../../types/index.js';
 
 const EXTRACT_SYSTEM = `You are an expert analyst. Extract structured company information from the provided content. Return valid JSON only, no markdown.`;
 
-const DESCRIPTIONS_SYSTEM = `You are an expert market analyst. Generate multiple distinct keyword-rich descriptions of a company for use as search queries to find competitors. Be precise about the category — use the company's actual product/service, not a generic sector. Return valid JSON only, no markdown.`;
+const DESCRIPTIONS_SYSTEM = `You are an expert market analyst. Generate distinct keyword-rich descriptions of a company for use as search queries to find direct competitors. Be precise about the exact product category — not the broad industry. Do NOT include the company name or URL in any description. Return valid JSON only, no markdown.`;
 
 export async function extractCompanyInfo(
   urlOrEmailBody: string,
@@ -86,14 +86,18 @@ ${content}`,
     userPrompt: `Company: ${extracted.name}
 Description: ${extracted.description}
 
-Generate 4 distinct, precise keyword-rich descriptions for finding DIRECT COMPETITORS via search. Each must describe a company that would compete with ${extracted.name} for the same customers solving the same problem. Be specific to the exact product category — not the broad industry.
+Generate exactly 3 distinct 1-sentence descriptions for finding DIRECT COMPETITORS via search. Each must emphasize a DIFFERENT aspect. Do NOT include the company name or URL.
 
-1. Functional (exact verbs + nouns of what it does)
-2. Customer/problem (precise buyer + pain point it solves)
-3. Category/market (exact product category, not broad sector)
-4. Technology/approach (how it works technically)
+Angle 1 (Functional): Literal mechanism/software features — exact verbs and nouns of what it does.
+  e.g. "AI agent that automates claim status checks via payer portals"
 
-Return JSON: { "descriptions": ["...", "...", "...", "..."] }`,
+Angle 2 (Outcome/Value): Business problem solved and the buyer — who pays and why.
+  e.g. "Revenue cycle automation platform for reducing denials in large health systems"
+
+Angle 3 (Niche/Technical): Industry jargon, regulations, technical keywords that an insider would use.
+  e.g. "Autonomous coding and prior authorization solution for FQHCs"
+
+Return JSON: { "descriptions": ["angle1", "angle2", "angle3"] }`,
     maxTokens: 512,
   });
 
