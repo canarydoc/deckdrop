@@ -179,30 +179,37 @@ export async function discoverCompetitors(
   type EResult = { url: string; title?: string; score?: number; highlights?: string[]; summary?: string };
   const layer1Promises: Promise<EResult[]>[] = [];
 
+  // Each call is wrapped in .catch() so one failed/timed-out Exa call
+  // doesn't crash the entire discovery pipeline — it just means fewer results.
+  const safe = (p: Promise<EResult[]>): Promise<EResult[]> => p.catch(err => {
+    console.warn(`[step2][${jobId}] Exa call failed: ${err.message}`);
+    return [] as EResult[];
+  });
+
   // 1. findSimilar on company URL — highest signal source
   if (company.url) {
-    layer1Promises.push(findSimilar(company.url, numResults, jobId, config));
+    layer1Promises.push(safe(findSimilar(company.url, numResults, jobId, config)));
   }
 
   // 2. searchCompanyCategory per description (all 3 Triple Tap angles)
   for (const desc of company.searchDescriptions) {
-    layer1Promises.push(searchCompanyCategory(desc, numResults, jobId, config));
+    layer1Promises.push(safe(searchCompanyCategory(desc, numResults, jobId, config)));
   }
 
   // 3. searchWeb on ONE description only (the broadest — index 1: Outcome/Value)
   //    This catches companies outside Exa's company index without tripling cost.
   if (webSearchEnabled && company.searchDescriptions.length > 1) {
-    layer1Promises.push(searchWeb(company.searchDescriptions[1], numResults, jobId, config));
+    layer1Promises.push(safe(searchWeb(company.searchDescriptions[1], numResults, jobId, config)));
   }
 
   // 4. Incumbent/leader search — catches established players that startup-focused
   //    descriptions miss (Waystar, AKASA, R1 RCM, etc.)
   const incumbentQuery = `largest established ${company.description.split('.')[0]} companies market leaders`;
-  layer1Promises.push(searchCompanyCategory(incumbentQuery, 15, jobId, config));
+  layer1Promises.push(safe(searchCompanyCategory(incumbentQuery, 15, jobId, config)));
 
   // 5. Direct competitor query — explicitly named comparisons
   layer1Promises.push(
-    searchCompanyCategory(`${company.name} competitors alternatives vs`, 15, jobId, config)
+    safe(searchCompanyCategory(`${company.name} competitors alternatives vs`, 15, jobId, config))
   );
 
   const layer1Results = await Promise.all(layer1Promises);
