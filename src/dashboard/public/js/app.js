@@ -414,6 +414,31 @@ function app() {
       { id: 'test', label: 'Test' },
     ],
 
+    // Model dropdown options (OpenRouter IDs)
+    modelOptions: {
+      gemini: [
+        { id: 'google/gemini-2.5-pro',            label: 'Gemini 2.5 Pro' },
+        { id: 'google/gemini-2.5-flash',           label: 'Gemini 2.5 Flash' },
+        { id: 'google/gemini-2.5-flash-lite',      label: 'Gemini 2.5 Flash-Lite' },
+        { id: 'google/gemini-2.0-flash-001',       label: 'Gemini 2.0 Flash' },
+        { id: 'google/gemini-2.0-flash-lite-001',  label: 'Gemini 2.0 Flash-Lite' },
+      ],
+      openai: [
+        { id: 'openai/gpt-4.1',       label: 'GPT-4.1' },
+        { id: 'openai/gpt-4.1-mini',  label: 'GPT-4.1 Mini' },
+        { id: 'openai/gpt-4.1-nano',  label: 'GPT-4.1 Nano' },
+        { id: 'openai/gpt-4o',        label: 'GPT-4o' },
+        { id: 'openai/gpt-4o-mini',   label: 'GPT-4o Mini' },
+        { id: 'openai/o3',            label: 'o3 (reasoning)' },
+        { id: 'openai/o4-mini',       label: 'o4-mini (reasoning)' },
+      ],
+      grok: [
+        { id: 'x-ai/grok-4',           label: 'Grok 4' },
+        { id: 'x-ai/grok-3-beta',       label: 'Grok 3 Beta' },
+        { id: 'x-ai/grok-3-mini-beta',  label: 'Grok 3 Mini Beta' },
+      ],
+    },
+
     // Overview
     stats: {},
     recentJobs: [],

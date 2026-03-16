@@ -258,8 +258,30 @@
                 <div class="font-mono text-sm text-blue-300" x-text="item.key"></div>
                 <div class="text-xs text-gray-500 mt-0.5" x-text="item.description ?? ''"></div>
               </div>
-              <input :value="item.value" class="w-48 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm font-mono"
-                @change="updateConfig(item.key, $event.target.value)">
+              <template x-if="item.key.endsWith('_model')">
+                <select :value="item.value" class="w-72 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm font-mono"
+                  @change="updateConfig(item.key, $event.target.value)">
+                  <optgroup label="— Google Gemini —">
+                    <template x-for="m in modelOptions.gemini" :key="m.id">
+                      <option :value="m.id" :selected="item.value === m.id" x-text="m.label"></option>
+                    </template>
+                  </optgroup>
+                  <optgroup label="— OpenAI —">
+                    <template x-for="m in modelOptions.openai" :key="m.id">
+                      <option :value="m.id" :selected="item.value === m.id" x-text="m.label"></option>
+                    </template>
+                  </optgroup>
+                  <optgroup label="— xAI Grok —">
+                    <template x-for="m in modelOptions.grok" :key="m.id">
+                      <option :value="m.id" :selected="item.value === m.id" x-text="m.label"></option>
+                    </template>
+                  </optgroup>
+                </select>
+              </template>
+              <template x-if="!item.key.endsWith('_model')">
+                <input :value="item.value" class="w-48 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm font-mono"
+                  @change="updateConfig(item.key, $event.target.value)">
+              </template>
             </div>
           </template>
         </div>
