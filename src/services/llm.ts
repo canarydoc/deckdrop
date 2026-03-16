@@ -9,6 +9,7 @@ import type { LLMRequest, LLMResponse } from '../types/index.js';
 const openai = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY!,
   baseURL: 'https://openrouter.ai/api/v1',
+  timeout: 120_000, // 2 min timeout — prevents indefinite hangs
   defaultHeaders: {
     'HTTP-Referer': 'https://deckdrop.io',
     'X-Title': 'Deckdrop',
