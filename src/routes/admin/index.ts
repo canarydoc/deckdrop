@@ -137,6 +137,44 @@ router.patch('/prompts/:key', async (req, res) => {
   res.json(data);
 });
 
+// ── Available models from OpenRouter ─────────────────────────────────────────
+const PROVIDER_PREFIXES = ['google/gemini', 'openai/gpt-4', 'openai/gpt-5', 'openai/o1', 'openai/o3', 'openai/o4', 'x-ai/grok'];
+const EXCLUDE_PATTERNS = [/audio/, /image/, /:free/, /search-preview/, /oss/, /instruct/, /0314/, /1106/, /turbo-preview/, /2024-05/, /2024-08/, /gemma/, /gemini-2\.0-flash-exp/];
+
+router.get('/available-models', async (_req, res) => {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) { res.status(500).json({ error: 'No OpenRouter key' }); return; }
+
+  const resp = await fetch('https://openrouter.ai/api/v1/models', {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  const json = await resp.json() as { data: Array<{ id: string; name: string; context_length: number; pricing: { prompt: string; completion: string } }> };
+
+  const models = (json.data ?? [])
+    .filter(m => PROVIDER_PREFIXES.some(p => m.id.startsWith(p)))
+    .filter(m => !EXCLUDE_PATTERNS.some(rx => rx.test(m.id)))
+    .map(m => {
+      const inp = parseFloat(m.pricing?.prompt ?? '0') * 1_000_000;
+      const out = parseFloat(m.pricing?.completion ?? '0') * 1_000_000;
+      const ctx = m.context_length >= 1_000_000 ? `${Math.round(m.context_length / 1_000_000)}M ctx`
+        : m.context_length >= 1_000 ? `${Math.round(m.context_length / 1_000)}k ctx` : '';
+      const provider = m.id.startsWith('google/') ? 'gemini'
+        : m.id.startsWith('openai/') ? 'openai' : 'grok';
+      return {
+        id: m.id,
+        name: m.name ?? m.id,
+        provider,
+        ctx,
+        label: `${m.name ?? m.id} · $${inp.toFixed(2)}/$${out.toFixed(2)} /M`,
+        inputCost: inp,
+        outputCost: out,
+      };
+    })
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  res.json(models);
+});
+
 // ── Test trigger ──────────────────────────────────────────────────────────────
 router.post('/test', async (req, res) => {
   const { url, email } = req.body;

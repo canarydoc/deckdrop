@@ -414,30 +414,8 @@ function app() {
       { id: 'test', label: 'Test' },
     ],
 
-    // Model dropdown options (OpenRouter IDs)
-    modelOptions: {
-      gemini: [
-        { id: 'google/gemini-2.5-pro',            label: 'Gemini 2.5 Pro' },
-        { id: 'google/gemini-2.5-flash',           label: 'Gemini 2.5 Flash' },
-        { id: 'google/gemini-2.5-flash-lite',      label: 'Gemini 2.5 Flash-Lite' },
-        { id: 'google/gemini-2.0-flash-001',       label: 'Gemini 2.0 Flash' },
-        { id: 'google/gemini-2.0-flash-lite-001',  label: 'Gemini 2.0 Flash-Lite' },
-      ],
-      openai: [
-        { id: 'openai/gpt-4.1',       label: 'GPT-4.1' },
-        { id: 'openai/gpt-4.1-mini',  label: 'GPT-4.1 Mini' },
-        { id: 'openai/gpt-4.1-nano',  label: 'GPT-4.1 Nano' },
-        { id: 'openai/gpt-4o',        label: 'GPT-4o' },
-        { id: 'openai/gpt-4o-mini',   label: 'GPT-4o Mini' },
-        { id: 'openai/o3',            label: 'o3 (reasoning)' },
-        { id: 'openai/o4-mini',       label: 'o4-mini (reasoning)' },
-      ],
-      grok: [
-        { id: 'x-ai/grok-4',           label: 'Grok 4' },
-        { id: 'x-ai/grok-3-beta',       label: 'Grok 3 Beta' },
-        { id: 'x-ai/grok-3-mini-beta',  label: 'Grok 3 Mini Beta' },
-      ],
-    },
+    // Model dropdown options — loaded dynamically from OpenRouter via backend
+    modelOptions: { gemini: [], openai: [], grok: [] },
 
     // Overview
     stats: {},
@@ -471,7 +449,20 @@ function app() {
     testResult: null,
 
     async init() {
-      if (this.authed) await this.loadPage(this.page);
+      if (this.authed) {
+        await Promise.all([this.loadAvailableModels(), this.loadPage(this.page)]);
+      }
+    },
+
+    async loadAvailableModels() {
+      try {
+        const data = await apiFetch('/available-models');
+        this.modelOptions = {
+          gemini: data.filter(m => m.provider === 'gemini'),
+          openai: data.filter(m => m.provider === 'openai'),
+          grok:   data.filter(m => m.provider === 'grok'),
+        };
+      } catch {}
     },
 
     async login() {
@@ -480,7 +471,7 @@ function app() {
         await apiFetch('/stats');
         this.authed = true;
         this.authError = false;
-        await this.loadPage(this.page);
+        await Promise.all([this.loadAvailableModels(), this.loadPage(this.page)]);
       } catch {
         this.authed = false;
         this.authError = true;
@@ -584,9 +575,11 @@ function app() {
 
     async loadConfig() {
       try {
-        const data = await apiFetch('/config');
-        // API returns array of { key, value, description }
-        const arr = Array.isArray(data) ? data : (data.config ?? []);
+        const [configData] = await Promise.all([
+          apiFetch('/config'),
+          this.modelOptions.gemini.length === 0 ? this.loadAvailableModels() : Promise.resolve(),
+        ]);
+        const arr = Array.isArray(configData) ? configData : (configData.config ?? []);
         this.configItems = arr.map(r => ({
           key: r.key,
           value: r.value,
