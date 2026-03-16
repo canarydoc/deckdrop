@@ -36,12 +36,24 @@ export async function llmComplete(req: LLMRequest): Promise<LLMResponse> {
   if (req.systemPrompt) messages.push({ role: 'system', content: req.systemPrompt });
   messages.push({ role: 'user', content: req.userPrompt });
 
-  const completion = await openai.chat.completions.create({
-    model,
-    messages,
-    max_tokens: req.maxTokens ?? 4096,
-    temperature: req.temperature ?? 0.3,
-  });
+  // AbortController with 2-min timeout to prevent indefinite hangs
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), 120_000);
+
+  let completion: OpenAI.Chat.ChatCompletion;
+  try {
+    completion = await openai.chat.completions.create(
+      {
+        model,
+        messages,
+        max_tokens: req.maxTokens ?? 4096,
+        temperature: req.temperature ?? 0.3,
+      },
+      { signal: controller.signal },
+    );
+  } finally {
+    clearTimeout(abortTimer);
+  }
 
   const latencyMs = Date.now() - start;
   const choice = completion.choices[0];
