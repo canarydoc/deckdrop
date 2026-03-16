@@ -178,7 +178,7 @@ router.get('/available-models', async (_req, res) => {
 // ── Test trigger ──────────────────────────────────────────────────────────────
 router.post('/test', async (req, res) => {
   const { url, email } = req.body;
-  const testEmail = email ?? 'dagnytaggart1997@gmail.com';
+  const testEmail = email ?? 'alex@deckdrop.io';
 
   const { data: job, error } = await supabase
     .from('jobs')
