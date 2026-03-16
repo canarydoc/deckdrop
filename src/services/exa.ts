@@ -18,27 +18,32 @@ const EXCLUDE_DOMAINS = [
 
 type ExaResult = { url: string; title?: string; score?: number; highlights?: string[]; summary?: string };
 
-/** Run an Exa call with excludeDomains retry: if it fails/hangs, retry without. */
+/** Run an Exa call with excludeDomains retry: if it fails/hangs, retry without.
+ *  BOTH attempts have a timeout to prevent indefinite hangs. */
 async function withExcludeRetry<T>(
   config: PipelineConfig,
   callWithExclude: (excludeDomains?: string[]) => Promise<T>,
 ): Promise<T> {
   const useExclude = config.exa_use_exclude_domains !== 'false';
-  if (!useExclude) return callWithExclude(undefined);
-
   const timeoutMs = parseInt(config.exa_exclude_retry_timeout_ms ?? '15000', 10);
 
-  try {
-    const result = await Promise.race([
-      callWithExclude(EXCLUDE_DOMAINS),
+  const withTimeout = (promise: Promise<T>, label: string): Promise<T> =>
+    Promise.race([
+      promise,
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('exa_exclude_timeout')), timeoutMs)
+        setTimeout(() => reject(new Error(`exa_timeout_${label}`)), timeoutMs)
       ),
     ]);
-    return result;
+
+  if (!useExclude) {
+    return withTimeout(callWithExclude(undefined), 'no_exclude');
+  }
+
+  try {
+    return await withTimeout(callWithExclude(EXCLUDE_DOMAINS), 'with_exclude');
   } catch (err) {
     console.warn(`[exa] excludeDomains failed (${(err as Error).message}), retrying without`);
-    return callWithExclude(undefined);
+    return withTimeout(callWithExclude(undefined), 'retry_no_exclude');
   }
 }
 
