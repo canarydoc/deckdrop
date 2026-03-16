@@ -6,6 +6,53 @@ import supabase from '../../services/supabase.js';
 
 const router = Router();
 
+/** Minimal markdown → HTML (handles headers, bold, tables, lists, links, paragraphs) */
+function markdownToHtml(md: string): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = md.split('\n');
+  const out: string[] = [];
+  let inTable = false;
+  let inList = false;
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    // Table rows
+    if (line.startsWith('|')) {
+      if (line.replace(/[|\s-]/g, '') === '') continue; // separator row
+      if (!inTable) { out.push('<table>'); inTable = true; }
+      const cells = line.split('|').filter(c => c.trim() !== '');
+      const tag = !out.some(l => l.includes('<tr>')) ? 'th' : 'td';
+      out.push('<tr>' + cells.map(c => `<${tag}>${inline(esc(c.trim()))}</${tag}>`).join('') + '</tr>');
+      continue;
+    }
+    if (inTable) { out.push('</table>'); inTable = false; }
+    // Lists
+    if (/^[*-]\s/.test(line)) {
+      if (!inList) { out.push('<ul>'); inList = true; }
+      out.push(`<li>${inline(esc(line.replace(/^[*-]\s+/, '')))}</li>`);
+      continue;
+    }
+    if (inList) { out.push('</ul>'); inList = false; }
+    // Headers
+    const hm = line.match(/^(#{1,4})\s+(.*)/);
+    if (hm) { const n = hm[1].length; out.push(`<h${n}>${inline(esc(hm[2]))}</h${n}>`); continue; }
+    // Horizontal rule
+    if (/^---+$/.test(line.trim())) { out.push('<hr>'); continue; }
+    // Empty line
+    if (line.trim() === '') { out.push(''); continue; }
+    // Paragraph
+    out.push(`<p>${inline(esc(line))}</p>`);
+  }
+  if (inTable) out.push('</table>');
+  if (inList) out.push('</ul>');
+  return out.join('\n');
+}
+function inline(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[(\d+)\]/g, '<sup>[$1]</sup>')
+    .replace(/\[([^\]]+)\]\[([^\]]+)\]/g, '<a href="#">$1</a>');
+}
+
 // Simple secret-based auth for admin routes
 router.use((req, res, next) => {
   const secret = req.headers['x-admin-secret'] ?? req.query.secret;
@@ -49,6 +96,27 @@ router.get('/jobs/:id', async (req, res) => {
     supabase.from('api_calls').select('*').eq('job_id', req.params.id).order('created_at'),
   ]);
   res.json({ job: job.data, apiCalls: apiCalls.data ?? [] });
+});
+
+router.get('/jobs/:id/report', async (req, res) => {
+  const { data: job } = await supabase
+    .from('jobs')
+    .select('company_name, report_markdown')
+    .eq('id', req.params.id)
+    .single();
+  if (!job?.report_markdown) {
+    res.status(404).send('Report not available');
+    return;
+  }
+  const title = job.company_name ?? 'Deckdrop Report';
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+<style>body{max-width:900px;margin:40px auto;padding:0 20px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.6;color:#1a1a1a}
+h1,h2,h3,h4{margin-top:2em}table{border-collapse:collapse;width:100%;margin:1em 0}
+th,td{border:1px solid #ddd;padding:8px 12px;text-align:left;font-size:14px}
+th{background:#f5f5f5;font-weight:600}tr:nth-child(even){background:#fafafa}
+pre{background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto}
+a{color:#2563eb}</style></head><body>${markdownToHtml(job.report_markdown)}</body></html>`);
 });
 
 // ── Users ─────────────────────────────────────────────────────────────────────

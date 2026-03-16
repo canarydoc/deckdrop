@@ -349,7 +349,7 @@ function promptsApp() {
 function testApp() {
   return {
     url: '',
-    email: 'dagnytaggart1997@gmail.com',
+    email: 'alex@deckdrop.io',
     running: false,
     result: null,
     error: null,
@@ -445,7 +445,7 @@ function app() {
 
     // Test
     testUrl: '',
-    testEmail: 'dagnytaggart1997@gmail.com',
+    testEmail: 'alex@deckdrop.io',
     testRunning: false,
     testResult: null,
 
@@ -525,6 +525,15 @@ function app() {
         this.selectedJob = data.job;
         this.selectedApiCalls = data.apiCalls ?? data.api_calls ?? [];
       } catch {}
+    },
+
+    goToJob(id) {
+      this.page = 'jobs';
+      this.openJob(id);
+    },
+
+    async viewReport(id) {
+      window.open(API_BASE + '/jobs/' + id + '/report?secret=' + encodeURIComponent(getSecret()), '_blank');
     },
 
     async loadUsers() {
